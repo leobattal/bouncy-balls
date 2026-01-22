@@ -338,18 +338,29 @@ function loop() {
       ball.vy += gravity;
       ball.x += ball.vx;
       ball.y += ball.vy;
+// Floor
+if (ball.y + ball.r > canvas.height) {
+  ball.y = canvas.height - ball.r;
+  ball.vy *= -bounce;
+}
 
-      if (ball.y + ball.r > canvas.height) {
-        ball.y = canvas.height - ball.r;
-        ball.vy *= -bounce;
-      }
+// Ceiling
+if (ball.y - ball.r < 0) {
+  ball.y = ball.r;
+  ball.vy *= -bounce;
+}
 
-      if (ball.x - ball.r < 0 || ball.x + ball.r > canvas.width) {
-        ball.vx *= -bounce;
-      }
-      
-    }
+// Left wall
+if (ball.x - ball.r < 0) {
+  ball.x = ball.r;
+  ball.vx *= -bounce;
+}
 
+// Right wall
+if (ball.x + ball.r > canvas.width) {
+  ball.x = canvas.width - ball.r;
+  ball.vx *= -bounce;
+}
     ctx.beginPath();
     ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
     ctx.fillStyle = ball.color;
