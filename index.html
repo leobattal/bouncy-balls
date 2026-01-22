@@ -6,97 +6,120 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
 <style>
-  body {#settingsBtn {
-  position: fixed;
-  top: 12px;
-  right: 12px;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: none;
-  font-size: 22px;
-  background: #222;
-  color: white;
-  z-index: 10;
-}
-
-#settingsPanel {
-  position: fixed;
-  top: 0;
-  right: 0;
-  width: min(300px, 80vw);
-  height: 100vh;
-  background: #1a1a1a;
-  color: white;
-  padding: 20px;
-  box-sizing: border-box;
-  transform: translateX(100%);
-  transition: transform 0.3s ease;
-  z-index: 20;
-}
-
-#settingsPanel.open {
-  transform: translateX(0);
-}
-
-#settingsPanel h2 {
-  margin-top: 0;
-}
-
-#settingsPanel label {
-  display: block;
-  margin: 20px 0;
-}
-
-#settingsPanel input {
-  width: 100%;
-}
-
-#closeSettings {
-  margin-top: 20px;
-  width: 100%;
-}
+  body {
     margin: 0;
     overflow: hidden;
     background: #111;
     touch-action: none;
   }
+
   canvas {
     display: block;
+  }
+
+  /* --- SETTINGS UI --- */
+  #settingsBtn {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    font-size: 22px;
+    background: #222;
+    color: white;
+    z-index: 10;
+  }
+
+  #settingsPanel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: min(300px, 80vw);
+    height: 100vh;
+    background: #1a1a1a;
+    color: white;
+    padding: 20px;
+    box-sizing: border-box;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    z-index: 20;
+    overflow-y: auto;
+  }
+
+  #settingsPanel.open {
+    transform: translateX(0);
+  }
+
+  #settingsPanel h2 {
+    margin-top: 0;
+  }
+
+  #settingsPanel label {
+    display: block;
+    margin: 20px 0;
+  }
+
+  #settingsPanel input {
+    width: 100%;
+  }
+
+  #closeSettings, #clearBalls, #resetDefaults {
+    margin-top: 20px;
+    width: 100%;
   }
 </style>
 </head>
 <body>
   <button id="settingsBtn">⚙️</button>
 
-<div id="settingsPanel">
-  <h2>Settings</h2>
+  <div id="settingsPanel">
+    <h2>Settings</h2>
 
-  <label>
-    Gravity
-    <input type="range" id="gravitySlider" min="0" max="2" step="0.05">
-  </label>
+    <label>
+      Gravity
+      <input type="range" id="gravitySlider" min="0" max="2" step="0.05">
+    </label>
 
-  <label>
-    Bounce
-    <input type="range" id="bounceSlider" min="0" max="1" step="0.05">
-  </label>
+    <label>
+      Bounce
+      <input type="range" id="bounceSlider" min="0" max="1" step="0.05">
+    </label>
 
-  <button id="closeSettings">Close</button>
-</div>
-<canvas id="canvas"></canvas>
+    <label>
+      Max Ball Size
+      <input type="range" id="maxSizeSlider" min="10" max="200" step="5">
+    </label>
+
+    <button id="clearBalls">Clear All Balls</button>
+    <button id="resetDefaults">Reset Defaults</button>
+    <button id="closeSettings">Close</button>
+  </div>
+
+  <canvas id="canvas"></canvas>
 
 <script>
-  const settingsBtn = document.getElementById("settingsBtn");
+const settingsBtn = document.getElementById("settingsBtn");
 const settingsPanel = document.getElementById("settingsPanel");
 const closeSettings = document.getElementById("closeSettings");
 
 const gravitySlider = document.getElementById("gravitySlider");
 const bounceSlider = document.getElementById("bounceSlider");
+const maxSizeSlider = document.getElementById("maxSizeSlider");
+const clearBalls = document.getElementById("clearBalls");
+const resetDefaults = document.getElementById("resetDefaults");
+
+let gravity = 0.6;
+let bounce = 0.85;
+let maxBallSize = 150;
 
 gravitySlider.value = gravity;
 bounceSlider.value = bounce;
-  settingsBtn.onclick = () => {
+maxSizeSlider.value = maxBallSize;
+
+// --- Settings button events ---
+settingsBtn.onclick = () => {
   settingsPanel.classList.add("open");
 };
 
@@ -111,6 +134,26 @@ gravitySlider.oninput = () => {
 bounceSlider.oninput = () => {
   bounce = parseFloat(bounceSlider.value);
 };
+
+maxSizeSlider.oninput = () => {
+  maxBallSize = parseInt(maxSizeSlider.value);
+};
+
+clearBalls.onclick = () => {
+  balls.length = 0;
+};
+
+resetDefaults.onclick = () => {
+  gravity = 0.6;
+  bounce = 0.85;
+  maxBallSize = 150;
+
+  gravitySlider.value = gravity;
+  bounceSlider.value = bounce;
+  maxSizeSlider.value = maxBallSize;
+};
+
+// --- Canvas setup ---
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
@@ -121,9 +164,8 @@ function resize() {
 resize();
 window.addEventListener("resize", resize);
 
-let gravity = 0.6;
-let bounce = 0.85;
 const balls = [];
+
 function resolveCollision(a, b) {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
@@ -132,7 +174,6 @@ function resolveCollision(a, b) {
   const minDist = a.r + b.r;
   if (dist === 0 || dist >= minDist) return;
 
-  // --- Push balls apart (prevents sticking)
   const overlap = minDist - dist;
   const nx = dx / dist;
   const ny = dy / dist;
@@ -142,21 +183,16 @@ function resolveCollision(a, b) {
   b.x += nx * overlap * 0.5;
   b.y += ny * overlap * 0.5;
 
-  // --- Mass based on size (area)
   const m1 = a.r * a.r;
   const m2 = b.r * b.r;
 
-  // --- Relative velocity
   const rvx = b.vx - a.vx;
   const rvy = b.vy - a.vy;
 
-  // --- Velocity along normal
   const velAlongNormal = rvx * nx + rvy * ny;
   if (velAlongNormal > 0) return;
 
-  // --- Restitution (bounciness)
   const restitution = 0.85;
-
   const impulse =
     (-(1 + restitution) * velAlongNormal) /
     (1 / m1 + 1 / m2);
@@ -191,30 +227,6 @@ canvas.addEventListener("touchmove", e => {
   growX = t.clientX;
   growY = t.clientY;
 });
-
-// ---- MOUSE INPUT (for Mac / PC) ----
-canvas.addEventListener("mousedown", e => {
-  growing = true;
-  growRadius = 5;
-  growX = e.clientX;
-  growY = e.clientY;
-});
-
-canvas.addEventListener("mouseup", () => {
-  if (!growing) return;
-
-  balls.push({
-    x: growX,
-    y: growY,
-    r: growRadius,
-    vx: (Math.random() - 0.5) * 4,
-    vy: 0,
-    color: `hsl(${Math.random() * 360}, 80%, 60%)`
-  });
-
-  growing = false;
-});
-
 canvas.addEventListener("touchend", e => {
   e.preventDefault();
   if (!growing) return;
@@ -230,34 +242,56 @@ canvas.addEventListener("touchend", e => {
 
   growing = false;
 });
+
+// ---- MOUSE INPUT ----
+canvas.addEventListener("mousedown", e => {
+  growing = true;
+  growRadius = 5;
+  growX = e.clientX;
+  growY = e.clientY;
+});
 canvas.addEventListener("mousemove", e => {
   if (!growing) return;
   growX = e.clientX;
   growY = e.clientY;
 });
+canvas.addEventListener("mouseup", () => {
+  if (!growing) return;
+
+  balls.push({
+    x: growX,
+    y: growY,
+    r: growRadius,
+    vx: (Math.random() - 0.5) * 4,
+    vy: 0,
+    color: `hsl(${Math.random() * 360}, 80%, 60%)`
+  });
+
+  growing = false;
+});
 
 // ---- GAME LOOP ----
 function loop() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-// --- Ball to ball collisions ---
-for (let i = 0; i < balls.length; i++) {
-  for (let j = i + 1; j < balls.length; j++) {
-    resolveCollision(balls[i], balls[j]);
-  }
-}
 
+  // Ball collisions
+  for (let i = 0; i < balls.length; i++) {
+    for (let j = i + 1; j < balls.length; j++) {
+      resolveCollision(balls[i], balls[j]);
+    }
+  }
+
+  // Ball physics and drawing
   for (const ball of balls) {
     ball.vy += gravity;
     ball.x += ball.vx;
     ball.y += ball.vy;
 
-    // Floor
     if (ball.y + ball.r > canvas.height) {
       ball.y = canvas.height - ball.r;
       ball.vy *= -bounce;
     }
 
-    // Walls
     if (ball.x - ball.r < 0 || ball.x + ball.r > canvas.width) {
       ball.vx *= -bounce;
     }
@@ -268,8 +302,10 @@ for (let i = 0; i < balls.length; i++) {
     ctx.fill();
   }
 
+  // Growing ball outline
   if (growing) {
     growRadius += 0.6;
+    if (growRadius > maxBallSize) growRadius = maxBallSize;
     ctx.beginPath();
     ctx.arc(growX, growY, growRadius, 0, Math.PI * 2);
     ctx.strokeStyle = "white";
