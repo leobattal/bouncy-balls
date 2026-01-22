@@ -156,9 +156,9 @@ clearBalls.onclick = () => {
 };
 
 resetDefaults.onclick = () => {
-  gravity = 0.6;
+  gravity = 0.5;
   bounce = 0.85;
-  maxBallSize = 150;
+  maxBallSize = 375;
 
   gravitySlider.value = gravity;
   bounceSlider.value = bounce;
@@ -347,6 +347,7 @@ function loop() {
       if (ball.x - ball.r < 0 || ball.x + ball.r > canvas.width) {
         ball.vx *= -bounce;
       }
+      
     }
 
     ctx.beginPath();
