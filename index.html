@@ -65,7 +65,7 @@
     width: 100%;
   }
 
-  #closeSettings, #clearBalls, #resetDefaults {
+  #closeSettings, #clearBalls, #resetDefaults, #addPaddleBtn {
     margin-top: 20px;
     width: 100%;
   }
@@ -92,6 +92,17 @@
       <input type="range" id="maxSizeSlider" min="10" max="325" step="5">
     </label>
 
+    <label>
+      Paddle Width
+      <input type="range" id="paddleWidthSlider" min="50" max="300" step="5">
+    </label>
+
+    <label>
+      Paddle Height
+      <input type="range" id="paddleHeightSlider" min="10" max="100" step="5">
+    </label>
+
+    <button id="addPaddleBtn">Add Paddle</button>
     <button id="clearBalls">Clear All Balls</button>
     <button id="resetDefaults">Reset Defaults</button>
     <button id="closeSettings">Close</button>
@@ -107,12 +118,15 @@ const closeSettings = document.getElementById("closeSettings");
 const gravitySlider = document.getElementById("gravitySlider");
 const bounceSlider = document.getElementById("bounceSlider");
 const maxSizeSlider = document.getElementById("maxSizeSlider");
+const paddleWidthSlider = document.getElementById("paddleWidthSlider");
+const paddleHeightSlider = document.getElementById("paddleHeightSlider");
+const addPaddleBtn = document.getElementById("addPaddleBtn");
 const clearBalls = document.getElementById("clearBalls");
 const resetDefaults = document.getElementById("resetDefaults");
 
 let gravity = 0.6;
 let bounce = 0.85;
-let maxBallSize = 325; // UPDATED MAX SIZE
+let maxBallSize = 325;
 
 let growing = false;
 let growRadius = 5;
@@ -120,63 +134,70 @@ let growX = 0;
 let growY = 0;
 
 let draggingBall = null;
+let draggingPaddle = null;
 let dragOffsetX = 0;
 let dragOffsetY = 0;
 
 const balls = [];
+const paddles = [];
+
+let paddleWidth = 150;
+let paddleHeight = 20;
 
 // --- Initialize sliders ---
 gravitySlider.value = gravity;
 bounceSlider.value = bounce;
 maxSizeSlider.value = maxBallSize;
+paddleWidthSlider.value = paddleWidth;
+paddleHeightSlider.value = paddleHeight;
 
 // --- Settings button events ---
-settingsBtn.onclick = () => {
-  settingsPanel.classList.add("open");
+settingsBtn.onclick = () => settingsPanel.classList.add("open");
+closeSettings.onclick = () => settingsPanel.classList.remove("open");
+
+gravitySlider.oninput = () => gravity = parseFloat(gravitySlider.value);
+bounceSlider.oninput = () => bounce = parseFloat(bounceSlider.value);
+maxSizeSlider.oninput = () => maxBallSize = parseInt(maxSizeSlider.value);
+
+paddleWidthSlider.oninput = () => {
+  paddleWidth = parseInt(paddleWidthSlider.value);
+  paddles.forEach(p => p.width = paddleWidth);
 };
 
-closeSettings.onclick = () => {
-  settingsPanel.classList.remove("open");
+paddleHeightSlider.oninput = () => {
+  paddleHeight = parseInt(paddleHeightSlider.value);
+  paddles.forEach(p => p.height = paddleHeight);
 };
 
-gravitySlider.oninput = () => {
-  gravity = parseFloat(gravitySlider.value);
+addPaddleBtn.onclick = () => {
+  paddles.push({
+    x: canvas.width/2 - paddleWidth/2,
+    y: canvas.height/2 - paddleHeight/2,
+    width: paddleWidth,
+    height: paddleHeight
+  });
 };
 
-bounceSlider.oninput = () => {
-  bounce = parseFloat(bounceSlider.value);
-};
-
-maxSizeSlider.oninput = () => {
-  maxBallSize = parseInt(maxSizeSlider.value);
-};
-
-clearBalls.onclick = () => {
-  balls.length = 0;
-};
+clearBalls.onclick = () => balls.length = 0;
 
 resetDefaults.onclick = () => {
-  gravity = 0.6;
-  bounce = 0.85;
-  maxBallSize = 325; // UPDATED MAX SIZE
+  gravity = 0.6; bounce = 0.85; maxBallSize = 325;
+  paddleWidth = 150; paddleHeight = 20;
 
   gravitySlider.value = gravity;
   bounceSlider.value = bounce;
   maxSizeSlider.value = maxBallSize;
+  paddleWidthSlider.value = paddleWidth;
+  paddleHeightSlider.value = paddleHeight;
 };
 
 // --- Canvas setup ---
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
+function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+resize(); window.addEventListener("resize", resize);
 
-function resize() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
-resize();
-window.addEventListener("resize", resize);
-
-// --- Utility: get ball under cursor ---
+// --- Utility ---
 function getBallAt(x, y) {
   for (let i = balls.length - 1; i >= 0; i--) {
     const b = balls[i];
@@ -186,202 +207,127 @@ function getBallAt(x, y) {
   }
   return null;
 }
+function getPaddleAt(x, y) {
+  for (let i = paddles.length - 1; i >= 0; i--) {
+    const p = paddles[i];
+    if (x > p.x && x < p.x+p.width && y > p.y && y < p.y+p.height) return p;
+  }
+  return null;
+}
 
-// --- Collision resolver ---
+// --- Collision ---
 function resolveCollision(a, b) {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const dist = Math.hypot(dx, dy);
-
+  const dx = b.x - a.x, dy = b.y - a.y, dist = Math.hypot(dx, dy);
   const minDist = a.r + b.r;
-  if (dist === 0 || dist >= minDist) return;
-
-  const overlap = minDist - dist;
-  const nx = dx / dist;
-  const ny = dy / dist;
-
-  a.x -= nx * overlap * 0.5;
-  a.y -= ny * overlap * 0.5;
-  b.x += nx * overlap * 0.5;
-  b.y += ny * overlap * 0.5;
-
-  const m1 = a.r * a.r;
-  const m2 = b.r * b.r;
-
-  const rvx = b.vx - a.vx;
-  const rvy = b.vy - a.vy;
-
-  const velAlongNormal = rvx * nx + rvy * ny;
-  if (velAlongNormal > 0) return;
-
+  if (dist===0 || dist>=minDist) return;
+  const overlap = minDist - dist, nx = dx/dist, ny = dy/dist;
+  a.x -= nx*overlap*0.5; a.y -= ny*overlap*0.5;
+  b.x += nx*overlap*0.5; b.y += ny*overlap*0.5;
+  const m1=a.r*a.r, m2=b.r*b.r;
+  const rvx=b.vx-a.vx, rvy=b.vy-a.vy;
+  const velAlongNormal = rvx*nx + rvy*ny;
+  if (velAlongNormal>0) return;
   const restitution = 0.85;
-  const impulse =
-    (-(1 + restitution) * velAlongNormal) /
-    (1 / m1 + 1 / m2);
-
-  const ix = impulse * nx;
-  const iy = impulse * ny;
-
-  a.vx -= ix / m1;
-  a.vy -= iy / m1;
-  b.vx += ix / m2;
-  b.vy += iy / m2;
+  const impulse = (-(1+restitution)*velAlongNormal)/(1/m1 + 1/m2);
+  a.vx -= impulse*nx/m1; a.vy -= impulse*ny/m1;
+  b.vx += impulse*nx/m2; b.vy += impulse*ny/m2;
 }
 
 // ---- INPUT HANDLERS ----
-
-// --- MOUSE ---
 canvas.addEventListener("mousedown", e => {
   const b = getBallAt(e.clientX, e.clientY);
-  if (b) {
-    draggingBall = b;
-    dragOffsetX = e.clientX - b.x;
-    dragOffsetY = e.clientY - b.y;
-  } else {
-    growing = true;
-    growRadius = 5;
-    growX = e.clientX;
-    growY = e.clientY;
-  }
+  const p = getPaddleAt(e.clientX, e.clientY);
+  if (p) { draggingPaddle=p; dragOffsetX=e.clientX-p.x; dragOffsetY=e.clientY-p.y; }
+  else if (b) { draggingBall=b; dragOffsetX=e.clientX-b.x; dragOffsetY=e.clientY-b.y; }
+  else { growing=true; growRadius=5; growX=e.clientX; growY=e.clientY; }
 });
-
 canvas.addEventListener("mousemove", e => {
   if (draggingBall) {
-    draggingBall.x = e.clientX - dragOffsetX;
-    draggingBall.y = e.clientY - dragOffsetY;
-    draggingBall.vx = 0;
-    draggingBall.vy = 0;
-
-    // Clamp dragged ball inside canvas
-    draggingBall.x = Math.min(canvas.width - draggingBall.r, Math.max(draggingBall.r, draggingBall.x));
-    draggingBall.y = Math.min(canvas.height - draggingBall.r, Math.max(draggingBall.r, draggingBall.y));
-  } else if (growing) {
-    growX = e.clientX;
-    growY = e.clientY;
-  }
+    draggingBall.x = e.clientX-dragOffsetX; draggingBall.y = e.clientY-dragOffsetY; draggingBall.vx=0; draggingBall.vy=0;
+    draggingBall.x = Math.min(canvas.width-draggingBall.r, Math.max(draggingBall.r, draggingBall.x));
+    draggingBall.y = Math.min(canvas.height-draggingBall.r, Math.max(draggingBall.r, draggingBall.y));
+  } else if (draggingPaddle) {
+    draggingPaddle.x = e.clientX-dragOffsetX; draggingPaddle.y = e.clientY-dragOffsetY;
+    draggingPaddle.x = Math.min(canvas.width-draggingPaddle.width, Math.max(0, draggingPaddle.x));
+    draggingPaddle.y = Math.min(canvas.height-draggingPaddle.height, Math.max(0, draggingPaddle.y));
+  } else if (growing) { growX=e.clientX; growY=e.clientY; }
+});
+canvas.addEventListener("mouseup", () => { draggingBall=null; draggingPaddle=null;
+  if(!growing) return;
+  balls.push({x:growX,y:growY,r:growRadius,vx:(Math.random()-0.5)*4,vy:0,color:`hsl(${Math.random()*360},80%,60%)`});
+  growing=false;
 });
 
-canvas.addEventListener("mouseup", () => {
-  draggingBall = null;
-  if (!growing) return;
-
-  balls.push({
-    x: growX,
-    y: growY,
-    r: growRadius,
-    vx: (Math.random() - 0.5) * 4,
-    vy: 0,
-    color: `hsl(${Math.random() * 360}, 80%, 60%)`
-  });
-
-  growing = false;
-});
-
-// --- TOUCH ---
 canvas.addEventListener("touchstart", e => {
   e.preventDefault();
   const t = e.touches[0];
   const b = getBallAt(t.clientX, t.clientY);
-  if (b) {
-    draggingBall = b;
-    dragOffsetX = t.clientX - b.x;
-    dragOffsetY = t.clientY - b.y;
-  } else {
-    growing = true;
-    growRadius = 5;
-    growX = t.clientX;
-    growY = t.clientY;
-  }
+  const p = getPaddleAt(t.clientX, t.clientY);
+  if (p) { draggingPaddle=p; dragOffsetX=t.clientX-p.x; dragOffsetY=t.clientY-p.y; }
+  else if (b) { draggingBall=b; dragOffsetX=t.clientX-b.x; dragOffsetY=t.clientY-b.y; }
+  else { growing=true; growRadius=5; growX=t.clientX; growY=t.clientY; }
 });
-
 canvas.addEventListener("touchmove", e => {
-  if (!e.touches.length) return;
+  if(!e.touches.length) return;
   const t = e.touches[0];
-  if (draggingBall) {
-    draggingBall.x = t.clientX - dragOffsetX;
-    draggingBall.y = t.clientY - dragOffsetY;
-    draggingBall.vx = 0;
-    draggingBall.vy = 0;
-
-    // Clamp dragged ball inside canvas
-    draggingBall.x = Math.min(canvas.width - draggingBall.r, Math.max(draggingBall.r, draggingBall.x));
-    draggingBall.y = Math.min(canvas.height - draggingBall.r, Math.max(draggingBall.r, draggingBall.y));
-  } else if (growing) {
-    growX = t.clientX;
-    growY = t.clientY;
-  }
+  if(draggingBall) {
+    draggingBall.x=t.clientX-dragOffsetX; draggingBall.y=t.clientY-dragOffsetY; draggingBall.vx=0; draggingBall.vy=0;
+    draggingBall.x=Math.min(canvas.width-draggingBall.r,Math.max(draggingBall.r,draggingBall.x));
+    draggingBall.y=Math.min(canvas.height-draggingBall.r,Math.max(draggingBall.r,draggingBall.y));
+  } else if(draggingPaddle) {
+    draggingPaddle.x=t.clientX-dragOffsetX; draggingPaddle.y=t.clientY-dragOffsetY;
+    draggingPaddle.x=Math.min(canvas.width-draggingPaddle.width,Math.max(0,draggingPaddle.x));
+    draggingPaddle.y=Math.min(canvas.height-draggingPaddle.height,Math.max(0,draggingPaddle.y));
+  } else if(growing) { growX=t.clientX; growY=t.clientY; }
 });
-
-canvas.addEventListener("touchend", e => {
-  e.preventDefault();
-  draggingBall = null;
-
-  if (!growing) return;
-
-  balls.push({
-    x: growX,
-    y: growY,
-    r: growRadius,
-    vx: (Math.random() - 0.5) * 4,
-    vy: 0,
-    color: `hsl(${Math.random() * 360}, 80%, 60%)`
-  });
-  growing = false;
+canvas.addEventListener("touchend", e => { e.preventDefault(); draggingBall=null; draggingPaddle=null;
+  if(!growing) return;
+  balls.push({x:growX,y:growY,r:growRadius,vx:(Math.random()-0.5)*4,vy:0,color:`hsl(${Math.random()*360},80%,60%)`});
+  growing=false;
 });
 
 // ---- GAME LOOP ----
 function loop() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
 
   // Ball collisions
-  for (let i = 0; i < balls.length; i++) {
-    for (let j = i + 1; j < balls.length; j++) {
-      resolveCollision(balls[i], balls[j]);
-    }
-  }
+  for(let i=0;i<balls.length;i++)
+    for(let j=i+1;j<balls.length;j++)
+      resolveCollision(balls[i],balls[j]);
 
-  // Ball physics & drawing
-  for (const ball of balls) {
-    if (ball !== draggingBall) {
-      ball.vy += gravity;
-      ball.x += ball.vx;
-      ball.y += ball.vy;
+  // Draw paddles
+  paddles.forEach(p => { ctx.fillStyle="#f90"; ctx.fillRect(p.x,p.y,p.width,p.height); });
 
-      // Clamp physics balls inside canvas
-      if (ball.y + ball.r > canvas.height) {
-        ball.y = canvas.height - ball.r;
-        ball.vy *= -bounce;
-      }
-      if (ball.y - ball.r < 0) {
-        ball.y = ball.r;
-        ball.vy *= -bounce;
-      }
-      if (ball.x - ball.r < 0) {
-        ball.x = ball.r;
-        ball.vx *= -bounce;
-      }
-      if (ball.x + ball.r > canvas.width) {
-        ball.x = canvas.width - ball.r;
-        ball.vx *= -bounce;
-      }
+  // Ball physics & collisions with walls/paddles
+  balls.forEach(ball => {
+    if(ball!==draggingBall){
+      ball.vy+=gravity; ball.x+=ball.vx; ball.y+=ball.vy;
+
+      // Wall collision
+      if(ball.y+ball.r>canvas.height){ball.y=canvas.height-ball.r;ball.vy*=-bounce;}
+      if(ball.y-ball.r<0){ball.y=ball.r;ball.vy*=-bounce;}
+      if(ball.x-ball.r<0){ball.x=ball.r;ball.vx*=-bounce;}
+      if(ball.x+ball.r>canvas.width){ball.x=canvas.width-ball.r;ball.vx*=-bounce;}
+
+      // Paddle collision
+      paddles.forEach(p => {
+        if(ball.x+ball.r>p.x && ball.x-ball.r<p.x+p.width && ball.y+ball.r>p.y && ball.y-ball.r<p.y+p.height){
+          // Determine direction
+          if(ball.y< p.y || ball.y>p.y+p.height){ ball.vy*=-bounce; if(ball.y<p.y) ball.y=p.y-ball.r; else ball.y=p.y+p.height+ball.r;}
+          else{ ball.vx*=-bounce; if(ball.x<p.x) ball.x=p.x-ball.r; else ball.x=p.x+p.width+ball.r;}
+        }
+      });
     }
 
     ctx.beginPath();
-    ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
-    ctx.fillStyle = ball.color;
+    ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2);
+    ctx.fillStyle=ball.color;
     ctx.fill();
-  }
+  });
 
-  // Growing ball outline
-  if (growing) {
-    growRadius += 0.6;
-    if (growRadius > maxBallSize) growRadius = maxBallSize;
-    ctx.beginPath();
-    ctx.arc(growX, growY, growRadius, 0, Math.PI * 2);
-    ctx.strokeStyle = "white";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  }
+  // Growing ball
+  if(growing){ growRadius+=0.6; if(growRadius>maxBallSize) growRadius=maxBallSize;
+    ctx.beginPath(); ctx.arc(growX,growY,growRadius,0,Math.PI*2); ctx.strokeStyle="white"; ctx.lineWidth=2; ctx.stroke(); }
 
   requestAnimationFrame(loop);
 }
