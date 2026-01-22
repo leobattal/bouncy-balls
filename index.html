@@ -89,7 +89,7 @@
 
     <label>
       Max Ball Size
-      <input type="range" id="maxSizeSlider" min="10" max="200" step="5">
+      <input type="range" id="maxSizeSlider" min="10" max="325" step="5">
     </label>
 
     <button id="clearBalls">Clear All Balls</button>
@@ -112,7 +112,7 @@ const resetDefaults = document.getElementById("resetDefaults");
 
 let gravity = 0.6;
 let bounce = 0.85;
-let maxBallSize = 150;
+let maxBallSize = 325; // UPDATED MAX SIZE
 
 let growing = false;
 let growRadius = 5;
@@ -156,9 +156,9 @@ clearBalls.onclick = () => {
 };
 
 resetDefaults.onclick = () => {
-  gravity = 0.5;
+  gravity = 0.6;
   bounce = 0.85;
-  maxBallSize = 375;
+  maxBallSize = 325; // UPDATED MAX SIZE
 
   gravitySlider.value = gravity;
   bounceSlider.value = bounce;
@@ -251,6 +251,10 @@ canvas.addEventListener("mousemove", e => {
     draggingBall.y = e.clientY - dragOffsetY;
     draggingBall.vx = 0;
     draggingBall.vy = 0;
+
+    // Clamp dragged ball inside canvas
+    draggingBall.x = Math.min(canvas.width - draggingBall.r, Math.max(draggingBall.r, draggingBall.x));
+    draggingBall.y = Math.min(canvas.height - draggingBall.r, Math.max(draggingBall.r, draggingBall.y));
   } else if (growing) {
     growX = e.clientX;
     growY = e.clientY;
@@ -298,6 +302,10 @@ canvas.addEventListener("touchmove", e => {
     draggingBall.y = t.clientY - dragOffsetY;
     draggingBall.vx = 0;
     draggingBall.vy = 0;
+
+    // Clamp dragged ball inside canvas
+    draggingBall.x = Math.min(canvas.width - draggingBall.r, Math.max(draggingBall.r, draggingBall.x));
+    draggingBall.y = Math.min(canvas.height - draggingBall.r, Math.max(draggingBall.r, draggingBall.y));
   } else if (growing) {
     growX = t.clientX;
     growY = t.clientY;
@@ -338,29 +346,26 @@ function loop() {
       ball.vy += gravity;
       ball.x += ball.vx;
       ball.y += ball.vy;
-// Floor
-if (ball.y + ball.r > canvas.height) {
-  ball.y = canvas.height - ball.r;
-  ball.vy *= -bounce;
-}
 
-// Ceiling
-if (ball.y - ball.r < 0) {
-  ball.y = ball.r;
-  ball.vy *= -bounce;
-}
+      // Clamp physics balls inside canvas
+      if (ball.y + ball.r > canvas.height) {
+        ball.y = canvas.height - ball.r;
+        ball.vy *= -bounce;
+      }
+      if (ball.y - ball.r < 0) {
+        ball.y = ball.r;
+        ball.vy *= -bounce;
+      }
+      if (ball.x - ball.r < 0) {
+        ball.x = ball.r;
+        ball.vx *= -bounce;
+      }
+      if (ball.x + ball.r > canvas.width) {
+        ball.x = canvas.width - ball.r;
+        ball.vx *= -bounce;
+      }
+    }
 
-// Left wall
-if (ball.x - ball.r < 0) {
-  ball.x = ball.r;
-  ball.vx *= -bounce;
-}
-
-// Right wall
-if (ball.x + ball.r > canvas.width) {
-  ball.x = canvas.width - ball.r;
-  ball.vx *= -bounce;
-}
     ctx.beginPath();
     ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
     ctx.fillStyle = ball.color;
