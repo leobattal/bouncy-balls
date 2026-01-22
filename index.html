@@ -87,6 +87,30 @@
 <canvas id="canvas"></canvas>
 
 <script>
+  const settingsBtn = document.getElementById("settingsBtn");
+const settingsPanel = document.getElementById("settingsPanel");
+const closeSettings = document.getElementById("closeSettings");
+
+const gravitySlider = document.getElementById("gravitySlider");
+const bounceSlider = document.getElementById("bounceSlider");
+
+gravitySlider.value = gravity;
+bounceSlider.value = bounce;
+  settingsBtn.onclick = () => {
+  settingsPanel.classList.add("open");
+};
+
+closeSettings.onclick = () => {
+  settingsPanel.classList.remove("open");
+};
+
+gravitySlider.oninput = () => {
+  gravity = parseFloat(gravitySlider.value);
+};
+
+bounceSlider.oninput = () => {
+  bounce = parseFloat(bounceSlider.value);
+};
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
@@ -97,8 +121,8 @@ function resize() {
 resize();
 window.addEventListener("resize", resize);
 
-const gravity = 0.6;
-const bounce = 0.85;
+let gravity = 0.6;
+let bounce = 0.85;
 const balls = [];
 function resolveCollision(a, b) {
   const dx = b.x - a.x;
