@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Bouncy Ball Sandbox</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: #111;
+    touch-action: none;
+  }
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener("resize", resize);
+
+const gravity = 0.6;
+const bounce = 0.85;
+const balls = [];
+function resolveCollision(a, b) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const dist = Math.hypot(dx, dy);
+
+  const minDist = a.r + b.r;
+  if (dist === 0 || dist >= minDist) return;
+
+  // --- Push balls apart (prevents sticking)
+  const overlap = minDist - dist;
+  const nx = dx / dist;
+  const ny = dy / dist;
+
+  a.x -= nx * overlap * 0.5;
+  a.y -= ny * overlap * 0.5;
+  b.x += nx * overlap * 0.5;
+  b.y += ny * overlap * 0.5;
+
+  // --- Mass based on size (area)
+  const m1 = a.r * a.r;
+  const m2 = b.r * b.r;
+
+  // --- Relative velocity
+  const rvx = b.vx - a.vx;
+  const rvy = b.vy - a.vy;
+
+  // --- Velocity along normal
+  const velAlongNormal = rvx * nx + rvy * ny;
+  if (velAlongNormal > 0) return;
+
+  // --- Restitution (bounciness)
+  const restitution = 0.85;
+
+  const impulse =
+    (-(1 + restitution) * velAlongNormal) /
+    (1 / m1 + 1 / m2);
+
+  const ix = impulse * nx;
+  const iy = impulse * ny;
+
+  a.vx -= ix / m1;
+  a.vy -= iy / m1;
+  b.vx += ix / m2;
+  b.vy += iy / m2;
+}
+
+let growing = false;
+let growRadius = 5;
+let growX = 0;
+let growY = 0;
+
+// ---- TOUCH INPUT ----
+canvas.addEventListener("touchstart", e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  growing = true;
+  growRadius = 5;
+  growX = t.clientX;
+  growY = t.clientY;
+});
+canvas.addEventListener("touchmove", e => {
+  if (!growing) return;
+  e.preventDefault();
+  const t = e.touches[0];
+  growX = t.clientX;
+  growY = t.clientY;
+});
+
+// ---- MOUSE INPUT (for Mac / PC) ----
+canvas.addEventListener("mousedown", e => {
+  growing = true;
+  growRadius = 5;
+  growX = e.clientX;
+  growY = e.clientY;
+});
+
+canvas.addEventListener("mouseup", () => {
+  if (!growing) return;
+
+  balls.push({
+    x: growX,
+    y: growY,
+    r: growRadius,
+    vx: (Math.random() - 0.5) * 4,
+    vy: 0,
+    color: `hsl(${Math.random() * 360}, 80%, 60%)`
+  });
+
+  growing = false;
+});
+
+canvas.addEventListener("touchend", e => {
+  e.preventDefault();
+  if (!growing) return;
+
+  balls.push({
+    x: growX,
+    y: growY,
+    r: growRadius,
+    vx: (Math.random() - 0.5) * 4,
+    vy: 0,
+    color: `hsl(${Math.random() * 360}, 80%, 60%)`
+  });
+
+  growing = false;
+});
+canvas.addEventListener("mousemove", e => {
+  if (!growing) return;
+  growX = e.clientX;
+  growY = e.clientY;
+});
+
+// ---- GAME LOOP ----
+function loop() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+// --- Ball to ball collisions ---
+for (let i = 0; i < balls.length; i++) {
+  for (let j = i + 1; j < balls.length; j++) {
+    resolveCollision(balls[i], balls[j]);
+  }
+}
+
+  for (const ball of balls) {
+    ball.vy += gravity;
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+
+    // Floor
+    if (ball.y + ball.r > canvas.height) {
+      ball.y = canvas.height - ball.r;
+      ball.vy *= -bounce;
+    }
+
+    // Walls
+    if (ball.x - ball.r < 0 || ball.x + ball.r > canvas.width) {
+      ball.vx *= -bounce;
+    }
+
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+    ctx.fillStyle = ball.color;
+    ctx.fill();
+  }
+
+  if (growing) {
+    growRadius += 0.6;
+    ctx.beginPath();
+    ctx.arc(growX, growY, growRadius, 0, Math.PI * 2);
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
